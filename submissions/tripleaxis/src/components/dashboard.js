@@ -1,8 +1,9 @@
 import React from 'react';
 import Store from '../stores/jedi-store';
 import JediService from '../core/jedi-service';
-import * as Signals from '../actions/signals';
+import {Notifications} from '../actions/signals';
 import {LIST_LENGTH} from '../core/config';
+import _ from 'underscore';
 
 import PlanetIndicator from './planet-indicator';
 import JediList from './jedi-list';
@@ -12,44 +13,20 @@ export default class Dashboard extends React.Component {
     constructor(props) {
         super(props);
 
-        this.onStoreChanged = this.onStoreChanged.bind(this);
-        this.validateJediList = this.validateJediList.bind(this);
+        _.bindAll(this, 'onStoreChanged');
         this.state = Store.getState();
     }
 
     componentWillMount() {
-        Signals.storeChanged.add(this.onStoreChanged);
+        Notifications.storeChanged.add(this.onStoreChanged);
     }
 
     componentWillUnmount() {
-        Signals.storeChanged.remove(this.onStoreChanged);
-    }
-
-    validateJediList() {
-        console.log(this.state.jedis);
-        var arr = this.state.jedis;
-        for(let i=0; i<arr.length; i++) {
-            if(!arr[i]) {
-                if(!!arr[i-1]) {
-                    return JediService.fetch(
-                        arr[i-1].apprentice.id,
-                        i
-                    );
-                }
-                if(!!arr[i+1]) {
-                    return JediService.fetch(
-                        arr[i+1].master.id,
-                        i
-                    );
-                }
-
-                console.log('Orphaned item - no idea what to do...');
-            }
-        }
+        Notifications.storeChanged.remove(this.onStoreChanged);
     }
 
     onStoreChanged() {
-        this.setState(Store.getState(), this.validateJediList);
+        this.setState(Store.getState());
     }
 
     render() {

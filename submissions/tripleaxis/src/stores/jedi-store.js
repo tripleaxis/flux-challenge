@@ -1,7 +1,7 @@
 
-import Flux from 'flux';
+import _ from 'underscore';
 import {LIST_LENGTH} from '../core/config';
-import * as Signals from '../actions/signals';
+import {Actions, Notifications} from '../actions/signals';
 
 class JediStore {
 
@@ -11,24 +11,22 @@ class JediStore {
     }
 
     init() {
-        this.onPlanetChanged = this.onPlanetChanged.bind(this);
-        this.onJediLoaded = this.onJediLoaded.bind(this);
+        _.bindAll(this, 'onPlanetChanged', 'onJediLoaded');
 
         this._planet = {
             name: 'nowhere'
         };
         this._jedis = [];
-        while(this._jedis.length < LIST_LENGTH) this._jedis.push(undefined);
     }
 
     connect() {
-        Signals.planetChanged.add(this.onPlanetChanged);
-        Signals.jediLoaded.add(this.onJediLoaded);
+        Notifications.planetChanged.add(this.onPlanetChanged);
+        Notifications.jediLoaded.add(this.onJediLoaded);
     }
 
     disconnect() {
-        Signals.planetChanged.remove(this.onPlanetChanged);
-        Signals.jediLoaded.remove(this.onJediLoaded);
+        Notifications.planetChanged.remove(this.onPlanetChanged);
+        Notifications.jediLoaded.remove(this.onJediLoaded);
     }
 
     onPlanetChanged(payload) {
@@ -40,15 +38,35 @@ class JediStore {
         this.notify();
     }
 
-    onJediLoaded(payload, slotId) {
+    onJediLoaded(payload, action) {
         console.log(this + '::onJediLoaded()', payload);
         payload.alert = false;
-        this._jedis[slotId] = payload;
+
+        if(this._jedis.length >= LIST_LENGTH) {
+            Actions.abortRequests.dispatch();
+            return;
+        }
+
+        // add jedi to list, load surrounding rows and notify
+        this._jedis[action](payload);
+
+        this.loadNext(payload.apprentice.id, 'push');
+        this.loadNext(payload.master.id, 'unshift');
+
         this.notify();
     }
 
+    loadNext(id, action) {
+        if(!id || this._jedis.some((item) => { return item.id === id; })) {
+            // only load if id not null and doesn't already exist in the current list.
+            return;
+        }
+
+        Actions.loadJedi.dispatch(id, action);
+    }
+
     notify() {
-        Signals.storeChanged.dispatch();
+        Notifications.storeChanged.dispatch();
     }
 
     getState() {

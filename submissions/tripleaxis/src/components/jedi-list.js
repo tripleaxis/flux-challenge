@@ -1,8 +1,6 @@
 
 import React from 'react';
-
 import ListItem from './list-item';
-
 
 export default class JediList extends React.Component {
 
