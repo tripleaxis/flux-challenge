@@ -1,7 +1,21 @@
-
 import _ from 'underscore';
-import {LIST_LENGTH} from '../core/config';
-import {Actions, Notifications} from '../actions/signals';
+import {LIST_LENGTH, SCROLL_SIZE} from '../config';
+import Actions from '../actions/actions';
+import Notifications from '../actions/notifications';
+
+
+let _jediList = new Map();
+let _displayList = [];
+let _planet = { name: 'Nowhere' };
+
+function _updateDisplayList() {
+    _displayList = [];
+    _jediList.forEach((val) => { _displayList.push(val); });
+    _displayList.sort((a, b) => a.id === b.master.id ? -1 : 1);
+
+    // pad with undefined:
+    while(_displayList.length < LIST_LENGTH) _displayList.push(undefined);
+}
 
 class JediStore {
 
@@ -11,69 +25,94 @@ class JediStore {
     }
 
     init() {
-        _.bindAll(this, 'onPlanetChanged', 'onJediLoaded');
-
-        this._planet = {
-            name: 'nowhere'
-        };
-        this._jedis = [];
+        _.bindAll(this,
+            'onPlanetChanged', 'onJediLoaded',
+            'onScrollUp', 'onScrollDown'
+        );
     }
 
+    // add priorities so that these listeners are always processed first
     connect() {
-        Notifications.planetChanged.add(this.onPlanetChanged);
-        Notifications.jediLoaded.add(this.onJediLoaded);
-    }
-
-    disconnect() {
-        Notifications.planetChanged.remove(this.onPlanetChanged);
-        Notifications.jediLoaded.remove(this.onJediLoaded);
+        Notifications.planetChanged.add(this.onPlanetChanged, null, 1);
+        Notifications.jediLoaded.add(this.onJediLoaded, null, 1);
+        Actions.scrollUp.add(this.onScrollUp, null, 1);
+        Actions.scrollDown.add(this.onScrollDown, null, 1);
     }
 
     onPlanetChanged(payload) {
-        this._planet = JSON.parse(payload);
-        this._jedis.forEach((item) => {
-            if(!item) return;
-            item.alert = item.homeworld.id === this._planet.id;
+        _planet = JSON.parse(payload);
+        _jediList.forEach((item) => {
+            if (!item) return;
+            item.alert = item.homeworld.id === _planet.id;
         });
         this.notify();
     }
 
-    onJediLoaded(payload, action) {
-        console.log(this + '::onJediLoaded()', payload);
-        payload.alert = false;
-
-        if(this._jedis.length >= LIST_LENGTH) {
-            Actions.abortRequests.dispatch();
-            return;
+    onScrollUp() {
+        console.log(this + '::onScrollUp()');
+        var i=SCROLL_SIZE;
+        while(--i>-1) {
+            _jediList.delete(_displayList.pop().id);
+            _displayList.unshift(undefined);
         }
 
-        // add jedi to list, load surrounding rows and notify
-        this._jedis[action](payload);
-
-        this.loadNext(payload.apprentice.id, 'push');
-        this.loadNext(payload.master.id, 'unshift');
-
+        Actions.loadJedi.dispatch(_displayList[SCROLL_SIZE].master.id);
         this.notify();
     }
 
-    loadNext(id, action) {
-        if(!id || this._jedis.some((item) => { return item.id === id; })) {
-            // only load if id not null and doesn't already exist in the current list.
+    onScrollDown() {
+        console.log(this + '::onScrollDown()');
+        var i=SCROLL_SIZE;
+        while(--i>-1) {
+            _jediList.delete(_displayList.shift().id);
+            _displayList.push(undefined);
+        }
+
+        Actions.loadJedi.dispatch(_displayList[_displayList.length-SCROLL_SIZE-1].apprentice.id);
+        this.notify();
+    }
+
+    onJediLoaded(payload) {
+        console.log(this + '::onJediLoaded()', payload);
+        payload.alert = false;
+
+        // add jedi to list, load surrounding rows and notify
+        _jediList.set(payload.id, payload);
+
+        _updateDisplayList();
+        this.notify();
+
+        // If list is full, dispatch notifications and exit
+        if (_jediList.size === LIST_LENGTH) {
+            Actions.abortRequests.dispatch();
+            Notifications.jediListFull.dispatch();
             return;
         }
 
-        Actions.loadJedi.dispatch(id, action);
+        // load master and apprentice
+        this.loadNext(payload.apprentice.id, payload.id);
+        this.loadNext(payload.master.id, payload.id);
+    }
+
+    // only load if id isn't null and it doesn't exist already.
+    loadNext(id) {
+        if (!id || _jediList.has(id)) return;
+        Actions.loadJedi.dispatch(id);
     }
 
     notify() {
-        Notifications.storeChanged.dispatch();
+        Notifications.jediStoreChanged.dispatch();
     }
 
-    getState() {
-        return {
-            planet: this._planet,
-            jedis: this._jedis
-        };
+    getJediList() {
+        var list = JSON.parse(JSON.stringify(_displayList));
+        list.first = list[0];
+        list.last = list[LIST_LENGTH-1];
+        return list;
+    }
+
+    getPlanet() {
+        return JSON.parse(JSON.stringify(_planet));
     }
 
     toString() {

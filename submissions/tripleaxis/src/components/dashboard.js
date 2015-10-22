@@ -1,48 +1,81 @@
 import React from 'react';
-import Store from '../stores/jedi-store';
-import JediService from '../core/jedi-service';
-import {Notifications} from '../actions/signals';
-import {LIST_LENGTH} from '../core/config';
+
+import JediStore from '../stores/jedi-store';
+import AppStore from '../stores/app-store';
+import JediService from '../services/jedi-service';
+import {jediStoreChanged, appStoreChanged} from '../actions/notifications';
+import {scrollUp, scrollDown} from '../actions/actions';
+import {LIST_LENGTH, ALERT_COLOUR} from '../config';
 import _ from 'underscore';
 
 import PlanetIndicator from './planet-indicator';
 import JediList from './jedi-list';
+import ListButton from './list-button';
 
 export default class Dashboard extends React.Component {
 
     constructor(props) {
         super(props);
 
-        _.bindAll(this, 'onStoreChanged');
-        this.state = Store.getState();
+        _.bindAll(this,
+            'onJediStoreChanged','onAppStoreChanged',
+            'onButtonUpClick', 'onButtonDownClick'
+        );
+
+        this.state = {
+            planet: JediStore.getPlanet(),
+            jedis: JediStore.getJediList(),
+            systemActive: AppStore.isActive()
+        };
     }
 
     componentWillMount() {
-        Notifications.storeChanged.add(this.onStoreChanged);
+        jediStoreChanged.add(this.onJediStoreChanged);
+        appStoreChanged.add(this.onAppStoreChanged);
     }
 
     componentWillUnmount() {
-        Notifications.storeChanged.remove(this.onStoreChanged);
+        jediStoreChanged.remove(this.onJediStoreChanged);
+        appStoreChanged.remove(this.onAppStoreChanged);
     }
 
-    onStoreChanged() {
-        this.setState(Store.getState());
+    onJediStoreChanged() {
+        this.setState({
+            planet: JediStore.getPlanet(),
+            jedis: JediStore.getJediList()
+        });
+    }
+
+    onAppStoreChanged() {
+        this.setState({
+            systemActive: AppStore.isActive() && !AppStore.isLoading()
+        });
+    }
+
+    onButtonUpClick() {
+        scrollUp.dispatch();
+    }
+    onButtonDownClick() {
+        scrollDown.dispatch();
     }
 
     render() {
 
+        var upEnabled = this.state.systemActive && !!this.state.jedis.first && !!this.state.jedis.first.master.id;
+        var downEnabled = this.state.systemActive && !!this.state.jedis.last && !!this.state.jedis.last.apprentice.id;
+
         return <div className="css-root">
             <PlanetIndicator name={this.state.planet.name}/>
+            <style>{` .alert { color: ${ALERT_COLOUR}; } `}</style>
             <section className="css-scrollable-list">
                 <JediList items={this.state.jedis}/>
 
                 <div className="css-scroll-buttons">
-                    <button className="css-button-up"></button>
-                    <button className="css-button-down"></button>
+                    <ListButton type="up" click={this.onButtonUpClick} enabled={upEnabled}></ListButton>
+                    <ListButton type="down" click={this.onButtonDownClick} enabled={downEnabled}></ListButton>
                 </div>
             </section>
         </div>;
-
     }
 
     toString() {

@@ -1,5 +1,5 @@
-
 import React from 'react';
+import Config from '../config';
 
 const SPACE = '\u00A0';
 
@@ -13,13 +13,15 @@ export default class ListItem extends React.Component {
         return this.props.data ?
             this.props.data.name : SPACE;
     }
+
     getHomeworld() {
         return this.props.data ?
             this.props.data.homeworld.name : SPACE;
     }
+
     getStyles() {
         var classes = ['css-slot'];
-        if(this.props.data && this.props.data.alert) {
+        if (this.props.data && this.props.data.alert) {
             classes.push('alert');
         }
         return classes.join(' ');
@@ -35,5 +37,4 @@ export default class ListItem extends React.Component {
     toString() {
         return 'ListItem';
     }
-
 }

@@ -1,7 +1,9 @@
 
 import _ from 'underscore';
-import * as Config from  '../core/config.js';
-import {Actions, Notifications} from '../actions/signals';
+import * as Config from  '../config.js';
+import Notifications from '../actions/notifications';
+import Actions from '../actions/actions';
+
 
 class PlanetService {
 
@@ -11,9 +13,7 @@ class PlanetService {
 
     init() {
         this._socket = undefined;
-        _.bindAll(this, 'connect', 'disconnect', 'onMessage', 'onError');
-        Actions.connectSocket.add(this.connect);
-        Actions.disconnectSocket.add(this.disconnect);
+        _.bindAll(this, 'onMessage', 'onError');
     }
 
     connect() {
@@ -27,8 +27,8 @@ class PlanetService {
         Notifications.planetChanged.dispatch(payload.data);
     }
 
-    onError(payload) {
-        console.log(this + '::onError()', payload);
+    onError(err) {
+        console.log(this + '::onError()', err);
     }
 
     disconnect() {
